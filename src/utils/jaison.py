@@ -3,6 +3,7 @@ import asyncio
 import uuid
 import base64
 import datetime
+import re
 from typing import Dict, Coroutine, List, Any, Tuple
 from enum import Enum
 
@@ -102,9 +103,12 @@ class JAIson(metaclass=Singleton):
         
     async def stop(self):
         logging.info("Shutting down JAIson application layer")
-        await self.op_manager.close_operation_all()
-        await self.mcp_manager.close()
-        await self.process_manager.unload()
+        if self.op_manager:
+            await self.op_manager.close_operation_all()
+        if self.mcp_manager:
+            await self.mcp_manager.close()
+        if self.process_manager:
+            await self.process_manager.unload()
         logging.info("JAIson application layer has been shut down")
     
     ## Job Queueing #########################
@@ -172,8 +176,9 @@ class JAIson(metaclass=Singleton):
     async def _process_job_loop(self):
         while True:
             try:
-                await self.process_manager.reload()
-                await self.process_manager.unload()
+                if self.process_manager:
+                    await self.process_manager.reload()
+                    await self.process_manager.unload()
                 
                 self.job_current_id = await self.job_queue.get()
                 job_type, coro = self.job_map[self.job_current_id]
@@ -264,8 +269,18 @@ class JAIson(metaclass=Singleton):
         await self._handle_broadcast_event(job_id, job_type, {"history": [msg.to_dict() for msg in history]})
         await self._handle_broadcast_event(job_id, job_type, {"raw_content": t2t_result})
 
+        # Extract emotion tag
+        emotion = "neutral"
+        emotion_match = re.search(r"<emotion>(.*?)</emotion>", t2t_result, re.IGNORECASE)
+        if emotion_match:
+            emotion = emotion_match.group(1).strip().lower()
+            # Clean t2t_result from the tag
+            t2t_result = re.sub(r"<emotion>.*?</emotion>", "", t2t_result, flags=re.IGNORECASE).strip()
+
         # Apply text filters
         async for text_chunk_out in self.op_manager.use_operation(OpRoles.FILTER_TEXT, {"content": t2t_result}):
+            # Include detected emotion in the success event or chunk if needed
+            text_chunk_out["emotion"] = emotion
             self.prompter.add_chat(self.prompter.character_name, text_chunk_out['content'])
             await self._handle_broadcast_event(job_id, job_type, text_chunk_out)
             if include_audio:
@@ -319,7 +334,6 @@ class JAIson(metaclass=Singleton):
         if name_translations: payload |= {"name_translations": name_translations}
         if character_name: payload |= {"character_name": character_name}
         if history_length: payload |= {"history_length": history_length}
-        if history_length: payload |= {"history_length": history_length}
         if instruction_prompt_filename: payload |= {"instruction_prompt_filename": instruction_prompt_filename}
         if character_prompt_filename: payload |= {"character_prompt_filename": character_prompt_filename}
         if scene_prompt_filename: payload |= {"scene_prompt_filename": scene_prompt_filename}
@@ -332,7 +346,8 @@ class JAIson(metaclass=Singleton):
         self, 
         job_id: str, 
         job_type: JobType, 
-        content: str = None
+        content: str = None,
+        **kwargs
     ):
         await self._handle_broadcast_start(job_id, job_type, {"content": content})
         self.prompter.add_request(content)
@@ -350,7 +365,8 @@ class JAIson(metaclass=Singleton):
         job_type: JobType, 
         user: str = None, 
         timestamp: int = None, 
-        content: str = None
+        content: str = None,
+        **kwargs
     ):
         await self._handle_broadcast_start(job_id, job_type, {"user": user, "timestamp": timestamp, "content": content})
         self.prompter.add_chat(
@@ -358,7 +374,7 @@ class JAIson(metaclass=Singleton):
             content,
             time=(
                 datetime.datetime.fromtimestamp(timestamp) \
-                if not isinstance(timestamp, datetime.datetime) else timestamp
+                if (timestamp is not None and not isinstance(timestamp, datetime.datetime)) else timestamp
             )
         )
         last_line_o = self.prompter.history[-1]

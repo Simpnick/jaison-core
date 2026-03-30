@@ -18,7 +18,7 @@ class Prompter(metaclass=Singleton):
         self.character_prompt_filename: str = 'example.txt'
         self.scene_prompt_filename: str = 'example.txt'
 
-        self.character_name: str = "J.A.I.son"
+        self.character_name: str = "Gigi a Sapeca"
         self.name_translations: Dict[str, str] = {"old name": "new:name"}
         self.history_length: int = 50
         

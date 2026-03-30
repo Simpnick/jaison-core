@@ -31,7 +31,11 @@ class PyttsTTS(TTSOperation):
         voices = self.engine.getProperty('voices')
         logging.info("Operation {}: Available voices are: {}".format(self.op_id, list(map(lambda x: x.id, voices))))
         
-        self.engine.setProperty('voice', self.voice)
+        if self.voice:
+            self.engine.setProperty('voice', self.voice)
+        elif voices:
+            self.engine.setProperty('voice', voices[0].id)
+            
         self.engine.setProperty('gender', self.gender)
 
     async def close(self):
@@ -45,7 +49,7 @@ class PyttsTTS(TTSOperation):
         if "gender" in config_d: self.gender = str(config_d['gender'])
         if "working_file" in config_d: self.working_file = str(config_d['working_file'])
         
-        assert self.voice is not None and len(self.voice) > 0
+        # assert self.voice is not None and len(self.voice) > 0
         assert self.working_file is not None and len(self.working_file) > 0
         
     async def get_configuration(self):

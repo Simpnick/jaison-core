@@ -23,13 +23,39 @@ class SocketServerObserver(BaseObserverClient, metaclass=Singleton):
 
     async def handle_event(self, event_id: str, payload) -> None:
         '''Broadcast events from broadcast server'''
-        for key in payload:
-            if isinstance(payload[key], bytes):
-                  payload[key] = base64.b64encode(payload[key]).decode('utf-8')
-        message = json.dumps(create_response(200, event_id, payload))
-        logging.debug(f"Broadcasting event to {len(self.connections)} clients")
-        for ws in set(self.connections):
-            await ws.send(message)
+        try:
+            # Ensure payload is a dictionary before trying to process bytes
+            if isinstance(payload, dict):
+                for key in list(payload.keys()): # Use list to avoid "dict changed size during iteration"
+                    if isinstance(payload[key], bytes):
+                          payload[key] = base64.b64encode(payload[key]).decode('utf-8')
+                    elif isinstance(payload[key], dict):
+                        # Recursive check for one level deep (e.g. results)
+                        for k2 in payload[key]:
+                            if isinstance(payload[key][k2], bytes):
+                                payload[key][k2] = base64.b64encode(payload[key][k2]).decode('utf-8')
+
+            # Create a flattened message structure for the client
+            # This ensures 'finished', 'success', 'job_id' are at top level if present in payload
+            # Seguindo estritamente a especificação do Developer Guide para Websocket Events
+            message_dict = {
+                "status": 200,
+                "message": event_id,
+                "response": payload
+            }
+            
+            message = json.dumps(message_dict)
+            logging.debug(f"Broadcasting event to {len(self.connections)} clients")
+            
+            # Use a list to iterate to safely remove closed connections
+            for ws in list(self.connections):
+                try:
+                    await ws.send(message)
+                except Exception as e:
+                    logging.warning(f"Error sending to websocket: {e}")
+                    self.connections.discard(ws)
+        except Exception as e:
+            logging.error(f"Critical error in SocketServerObserver.handle_event: {e}", exc_info=True)
             
     def shutdown(self, *args): # TODO set for use somewhere
         self.shutdown_signal.set_result(None)

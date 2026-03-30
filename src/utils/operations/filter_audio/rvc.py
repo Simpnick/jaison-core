@@ -1,5 +1,8 @@
 import wave
+import os
+import logging
 from rvc.modules.vc.modules import VC
+from pathlib import Path
 import torch
 import fairseq
 
@@ -30,10 +33,29 @@ class RVCFilter(FilterAudioOperation):
         torch.serialization.add_safe_globals([fairseq.data.dictionary.Dictionary])
         
     async def start(self):
+        # Configurar caminhos para o motor RVC encontrar os modelos base
+        os.environ["weight_root"] = os.path.abspath("models/rvc")
+        os.environ["hubert_path"] = os.path.abspath("models/rvc/hubert_base.pt")
+        os.environ["rmvpe_root"] = os.path.abspath("models/rvc")
+        os.environ["index_root"] = os.path.abspath("models/rvc")
+        
         await super().start()
         self.vc = VC()
         model_name = self.voice if self.voice.endswith('.pth') else f"{self.voice}.pth"
+        
+        # Se o model_name não for um caminho absoluto/existente, tenta na pasta de modelos
+        if not os.path.exists(model_name):
+            model_name = os.path.join("models/rvc", model_name)
+            
         self.vc.get_vc(model_name)
+        
+        # Warmup: Pré-carregar o modelo RMVPE para evitar lag na primeira resposta
+        if self.f0_method == "rmvpe":
+            import numpy as np
+            logging.info("Aquecendo RVC (Carregando RMVPE)...")
+            # Faz uma inferência dummy com 1s de silêncio para carregar os modelos com segurança
+            self.vc.vc_inference(1, np.zeros(16000, dtype=np.float32), f0_method=self.f0_method)
+            logging.info("RVC pronto na agulha!")
     
     async def configure(self, config_d):
         '''Configure and validate operation-specific configuration'''
@@ -72,9 +94,9 @@ class RVCFilter(FilterAudioOperation):
             f.setnchannels(ch)
             f.writeframes(audio_bytes)
             
-        tgt_sr, audio_opt, times, _ = self.vc.vc_single(
+        tgt_sr, audio_opt, times, _ = self.vc.vc_inference(
             1,
-            Config().ffmpeg_working_src,
+            Path(Config().ffmpeg_working_src),
             f0_up_key=self.f0_up_key,
             f0_method=self.f0_method,
             f0_file=self.f0_file,

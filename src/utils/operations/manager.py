@@ -53,15 +53,15 @@ def load_op(op_type: OpTypes, op_id: str):
     '''
     match op_type:
         case OpTypes.STT:
-            if op_id == "fish":
-                from .stt.fish import FishSTT
-                return FishSTT()
-            elif op_id == "azure":
+            if op_id == "azure":
                 from .stt.azure import AzureSTT
                 return AzureSTT()
             elif op_id == "openai":
                 from .stt.openai import OpenAISTT
                 return OpenAISTT()
+            elif op_id == "gemini":
+                from .stt.gemini import GeminiSTT
+                return GeminiSTT()
             elif op_id == "kobold":
                 from .stt.kobold import KoboldSTT
                 return KoboldSTT()
@@ -74,15 +74,15 @@ def load_op(op_type: OpTypes, op_id: str):
             elif op_id == "kobold":
                 from .t2t.kobold import KoboldT2T
                 return KoboldT2T()
+            elif op_id == "gemini":
+                from .t2t.gemini import GeminiT2T
+                return GeminiT2T()
             else:
                 raise UnknownOpID("T2T", op_id)
         case OpTypes.TTS:
             if op_id == "azure":
                 from .tts.azure import AzureTTS
                 return AzureTTS()
-            elif op_id == "fish":
-                from .tts.fish import FishTTS
-                return FishTTS()
             elif op_id == "openai":
                 from .tts.openai import OpenAITTS
                 return OpenAITTS()
@@ -92,9 +92,15 @@ def load_op(op_type: OpTypes, op_id: str):
             elif op_id == "melo":
                 from .tts.melo import MeloTTS
                 return MeloTTS()
+            elif op_id == "moss":
+                from .tts.moss import MossTTS
+                return MossTTS()
             elif op_id == "pytts":
                 from .tts.pytts import PyttsTTS
                 return PyttsTTS()
+            elif op_id == "edge":
+                from .tts.edge import EdgeTTS
+                return EdgeTTS()
             else:
                 raise UnknownOpID("TTS", op_id)
         case OpTypes.FILTER_AUDIO:
@@ -125,6 +131,9 @@ def load_op(op_type: OpTypes, op_id: str):
             if op_id == "openai":
                 from .embedding.openai import OpenAIEmbedding
                 return OpenAIEmbedding()
+            elif op_id == "gemini":
+                from .embedding.gemini import GeminiEmbedding
+                return GeminiEmbedding()
             else:
                 raise UnknownOpID("EMBEDDING", op_id)
         case _:

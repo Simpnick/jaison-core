@@ -1,4 +1,4 @@
-﻿absl-py==2.3.0
+absl-py==2.3.0
 aiofiles==24.1.0
 annotated-types==0.7.0
 antlr4-python3-runtime==4.8
@@ -224,3 +224,5 @@ win32_setctime==1.2.0
 wrapt==1.17.2
 
 wsproto==1.2.0
+google-genai==1.0.0
+edge-tts==7.2.8
